@@ -23,12 +23,12 @@ public Plugin myinfo =
     name = "NeonSM",
     description = "Neon SourceMod",
     author = "danthonywalker#5512",
-    version = "0.1.0",
+    version = "0.1.1",
     url = "https://github.com/neon-bot-project/NeonSM"
 }
 
-static ConVar neonChannelId;
-static ConVar neonCredentials;
+static ConVar neonSmChannelId;
+static ConVar neonSmCredentials;
 static HTTPClient httpClient;
 
 #define BUFFER_SIZE 255
@@ -36,10 +36,10 @@ static char BUFFER[BUFFER_SIZE];
 
 public void OnPluginStart()
 {
-    // ConVar values are not loaded until OnConfigsExecuted() is executed (so wait to initialize HTTPClient)
-    neonChannelId = CreateConVar("neon_channel_id", "", "The ID of the channel for Neon to communicate.");
-    neonCredentials = CreateConVar("neon_credentials", "", "Secret credentials for neon_channel_id.");
-    AutoExecConfig(true, "neon");
+    // ConVar values are not loaded until OnConfigsExecuted() is executed (so wait to initialize the HTTPClient)
+    neonSmChannelId = CreateConVar("neonsm_channel_id", "", "The ID of the channel for NeonSM to communicate.");
+    neonSmCredentials = CreateConVar("neonsm_credentials", "", "Secret credentials for neonsm_channel_id.");
+    AutoExecConfig(true, "neonsm");
 
     // Post a checkpoint and retrieve events every second
     CreateTimer(1.0, PostCheckpoint, _, TIMER_REPEAT);
@@ -58,12 +58,12 @@ public void OnConfigsExecuted()
     if (httpClient == null)
     {
         char buffer[BUFFER_SIZE] = "https://neon.yockto.technology/api/v1/channels/";
-        GetConVarString(neonChannelId, BUFFER, BUFFER_SIZE);
+        GetConVarString(neonSmChannelId, BUFFER, BUFFER_SIZE);
         StrCat(buffer, BUFFER_SIZE, BUFFER);
         httpClient = new HTTPClient(buffer);
 
         buffer = "Basic "; // Basic Authorization header prefix
-        GetConVarString(neonCredentials, BUFFER, BUFFER_SIZE);
+        GetConVarString(neonSmCredentials, BUFFER, BUFFER_SIZE);
         StrCat(buffer, BUFFER_SIZE, BUFFER);
         httpClient.SetHeader("Authorization", buffer);
 
