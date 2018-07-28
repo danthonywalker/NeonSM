@@ -11,7 +11,7 @@ NeonSM requires [REST in Pawn](https://forums.alliedmods.net/showthread.php?t=29
 2. Load the plugin using `sm plugins load neonsm`. You may safely ignore any errors during this step.
 
 3. Find the `neonsm.cfg` configuration file and change the values accordingly. If you do not understand what values to
-input refer to the documentation supplied by Neon.
+input refer to the documentation supplied by [Neon](https://github.com/neon-bot-project/Neon).
 
 4. Reload the plugin using `sm plugins reload neonsm`. There should be no errors during this step.
 
