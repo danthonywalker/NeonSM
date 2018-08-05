@@ -128,12 +128,12 @@ public void OnMapEnd()
 
 public void OnClientConnected(int client)
 {
-    PostEvent("GENERIC", "CLIENT_CONNECTED", GetJSONClientInfo(client));
+    PostEvent("GENERIC", "ON_CLIENT_CONNECTED", GetJSONClientInfo(client));
 }
 
 public void OnClientDisconnect(int client)
 {
-    PostEvent("GENERIC", "CLIENT_DISCONNECT", GetJSONClientInfo(client));
+    PostEvent("GENERIC", "ON_CLIENT_DISCONNECT", GetJSONClientInfo(client));
 }
 
 static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
