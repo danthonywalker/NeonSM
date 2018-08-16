@@ -49,8 +49,8 @@ public void OnPluginStart()
 
 public void OnPluginEnd()
 {
-    // TODO: Add metadata to apply here and on ON_PLGUIN_START
-    PostEvent("GENERIC", "ON_PLGUIN_END", new JSONObject());
+    // TODO: Apply metadata and on ON_PLGUIN_START
+    PostEvent("ON_PLGUIN_END", new JSONObject());
 }
 
 public void OnConfigsExecuted()
@@ -71,8 +71,8 @@ public void OnConfigsExecuted()
         httpClient.SetHeader("Accept", "application/json");
         httpClient.SetHeader("Content-Type", "application/json");
 
-        // Fulfills same functionality as OnPluginStart() would
-        PostEvent("GENERIC", "ON_PLGUIN_START", new JSONObject());
+        // Fulfills same functionality as OnPluginStart()
+        PostEvent("ON_PLGUIN_START", new JSONObject());
     }
 }
 
@@ -100,7 +100,7 @@ public Action OnLogAction(Handle source, Identity ident, int client, int target,
         }
 
         payload.SetString("message", message);
-        PostEvent("GENERIC", "ON_LOG_ACTION", payload);
+        PostEvent("ON_LOG_ACTION", payload);
     }
 
     return Plugin_Continue;
@@ -113,7 +113,7 @@ public void OnMapStart()
     GetCurrentMap(BUFFER, BUFFER_SIZE);
     payload.SetString("name", BUFFER);
 
-    PostEvent("GENERIC", "ON_MAP_START", payload);
+    PostEvent("ON_MAP_START", payload);
 }
 
 public void OnMapEnd()
@@ -123,17 +123,17 @@ public void OnMapEnd()
     GetCurrentMap(BUFFER, BUFFER_SIZE);
     payload.SetString("name", BUFFER);
 
-    PostEvent("GENERIC", "ON_MAP_END", payload);
+    PostEvent("ON_MAP_END", payload);
 }
 
 public void OnClientConnected(int client)
 {
-    PostEvent("GENERIC", "ON_CLIENT_CONNECTED", GetJSONClientInfo(client));
+    PostEvent("ON_CLIENT_CONNECTED", GetJSONClientInfo(client));
 }
 
 public void OnClientDisconnect(int client)
 {
-    PostEvent("GENERIC", "ON_CLIENT_DISCONNECT", GetJSONClientInfo(client));
+    PostEvent("ON_CLIENT_DISCONNECT", GetJSONClientInfo(client));
 }
 
 static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
@@ -144,7 +144,7 @@ static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
 
     int client = GetClientOfUserId(event.GetInt("userid"));
     payload.Set("client", GetJSONClientInfo(client));
-    PostEvent("GENERIC", "PLAYER_SAY", payload);
+    PostEvent("PLAYER_SAY", payload);
 }
 
 static Action PostCheckpoint(Handle timer)
@@ -178,13 +178,10 @@ static void PostCheckpointCallback(HTTPResponse response, any value)
     }
 }
 
-static void PostEvent(const char[] type, const char[] subType, JSONObject subPayload)
+static void PostEvent(const char[] type, JSONObject payload)
 {
     if (httpClient != null)
     {
-        JSONObject payload = new JSONObject();
-        payload.SetString("type", subType);
-        payload.Set("payload", subPayload);
         JSONObject request = new JSONObject();
         request.SetString("type", type);
         request.Set("payload", payload);
