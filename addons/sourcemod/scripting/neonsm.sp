@@ -14,8 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with NeonSM.  If not, see <https://www.gnu.org/licenses/>.
  */
+#include <morecolors>
 #include <ripext>
-#include <smlib>
 #include <sourcemod>
 
 public Plugin myinfo =
@@ -28,7 +28,7 @@ public Plugin myinfo =
 }
 
 static ConVar neonSmChannelId;
-static ConVar neonSmCredentials;
+static ConVar neonSmToken;
 static HTTPClient httpClient;
 
 #define BUFFER_SIZE 255
@@ -38,7 +38,7 @@ public void OnPluginStart()
 {
     // ConVar values are not loaded until OnConfigsExecuted() is executed (so wait to initialize the HTTPClient)
     neonSmChannelId = CreateConVar("neonsm_channel_id", "", "The ID of the channel for NeonSM to communicate.");
-    neonSmCredentials = CreateConVar("neonsm_credentials", "", "Secret credentials for neonsm_channel_id.");
+    neonSmToken = CreateConVar("neonsm_token", "", "Secret token for neonsm_channel_id.");
     AutoExecConfig(true, "neonsm");
 
     // Post a checkpoint and retrieve events every second
@@ -62,8 +62,8 @@ public void OnConfigsExecuted()
         StrCat(buffer, BUFFER_SIZE, BUFFER);
         httpClient = new HTTPClient(buffer);
 
-        buffer = "Basic "; // Basic Authorization header prefix
-        GetConVarString(neonSmCredentials, BUFFER, BUFFER_SIZE);
+        buffer = "Basic "; // Authorization header prefix
+        GetConVarString(neonSmToken, BUFFER, BUFFER_SIZE);
         StrCat(buffer, BUFFER_SIZE, BUFFER);
         httpClient.SetHeader("Authorization", buffer);
 
@@ -151,7 +151,7 @@ static Action PostCheckpoint(Handle timer)
 {
     if (httpClient != null)
     { // TODO: Replace this endpoint for a decent SourceMod WebSocket implementation
-        httpClient.Post("/checkpoints", new JSONObject(), PostCheckpointCallback);
+        httpClient.Post("checkpoints", new JSONObject(), PostCheckpointCallback);
     }
 
     return Plugin_Continue;
@@ -168,11 +168,10 @@ static void PostCheckpointCallback(HTTPResponse response, any value)
             JSONObject payload = view_as<JSONObject>(payloads.Get(index));
             payload.GetString("type", BUFFER, BUFFER_SIZE);
 
-            if (StrEqual(BUFFER, "ALL_MESSAGE"))
+            if (StrEqual(BUFFER, "ALL_MESSAGES"))
             {
                 payload.GetString("payload", BUFFER, BUFFER_SIZE);
-                Color_ParseChatText(BUFFER, BUFFER, BUFFER_SIZE);
-                Client_PrintToChatAll(false, BUFFER);
+                CPrintToChatAll(BUFFER); // #include <morecolors>
             }
         }
     }
@@ -185,18 +184,17 @@ static void PostEvent(const char[] type, JSONObject payload)
         JSONObject request = new JSONObject();
         request.SetString("type", type);
         request.Set("payload", payload);
-        httpClient.Post("/events", request, PostCallback);
+        httpClient.Post("events", request, PostCallback);
     }
 }
 
 static void PostCallback(HTTPResponse response, any value)
 {
-    // Disables HTTPClient until OnConfigsExecuted()
-    if (response.Status != HTTPStatus_OK)
+    // Disables HTTPClient until OnConfigsExecuted(), ignoring errors if Neon is shutdown
+    if ((response.Status != HTTPStatus_OK) && (response.Status != HTTPStatus_BadGateway))
     {
-        response.Data.ToString(BUFFER, BUFFER_SIZE);
-        httpClient = null; // Call before LogError because of OnLogAction()
-        LogError("Failed HTTP Request (%d): %s", response.Status, BUFFER);
+        httpClient = null; // Call before LogError because OnLogAction()
+        LogError("Failed HTTP Request - Status: (%d)", response.Status);
     }
 }
 
@@ -216,14 +214,6 @@ static JSONObject GetJSONClientInfo(int client)
     clientInfo.SetFloat("avgPackets", GetClientAvgPackets(client, NetFlow_Both));
     clientInfo.SetFloat("avgLoss", GetClientAvgLoss(client, NetFlow_Both));
     clientInfo.SetFloat("avgData", GetClientAvgData(client, NetFlow_Both));
-
-    // Below can throw errors because of "no mod support"
-    clientInfo.SetInt("frags", GetClientFrags(client));
-    clientInfo.SetInt("deaths", GetClientDeaths(client));
-    clientInfo.SetInt("health", GetClientHealth(client));
-    clientInfo.SetInt("armor", GetClientArmor(client));
-    GetClientWeapon(client, BUFFER, BUFFER_SIZE);
-    clientInfo.SetString("weapon", BUFFER);
 
     return clientInfo;
 }

@@ -4,14 +4,11 @@ pipeline:
     pull: true
     commands:
       - apt-get update
-      - apt-get install -y curl
-      - apt-get install -y unzip
-      - apt-get install -y libc6-i386 lib32stdc++6
+      - apt-get install -y curl libc6-i386 lib32stdc++6
       - curl -Lk https://sm.alliedmods.net/smdrop/1.9/sourcemod-1.9.0-git6245-linux.tar.gz | tar -xz -C ./
       - curl -Lk https://github.com/ErikMinekus/sm-ripext/releases/download/1.0.3/sm-ripext-1.0.3-linux.tar.gz | tar -xz -C ./
-      - curl -Lk -o smlib.zip https://github.com/bcserv/smlib/archive/master.zip
-      - unzip smlib.zip -d ./
-      - cp -r ./smlib-master/gamedata ./smlib-master/scripting ./addons/sourcemod/
+      - curl -Lk -o morecolors.inc https://www.doctormckay.com/download/scripting/include/morecolors.inc
+      - cp morecolors.inc ./addons/sourcemod/scripting/include/
       - ./addons/sourcemod/scripting/compile.sh neonsm.sp
 
   release:

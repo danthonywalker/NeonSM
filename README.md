@@ -3,7 +3,7 @@ SourceMod Script for Neon
 
 ## Installation
 NeonSM requires [REST in Pawn](https://forums.alliedmods.net/showthread.php?t=298024) and
-[SMLIB](https://forums.alliedmods.net/showthread.php?t=148387)<sup>1</sup> to be installed.
+[More Colors](https://forums.alliedmods.net/showthread.php?t=185016) to be installed.
 
 1. [Download](https://github.com/neon-bot-project/NeonSM/releases) `neonsm.smx` and place it under the
 `addons/sourcemod/plugins` directory. You may use any of the numerous checksum files to verify integrity.
@@ -14,5 +14,3 @@ NeonSM requires [REST in Pawn](https://forums.alliedmods.net/showthread.php?t=29
 input refer to the documentation supplied by [Neon](https://github.com/neon-bot-project/Neon).
 
 4. Reload the plugin using `sm plugins reload neonsm`. There should be no errors during this step.
-
-<sup>1</sup>NeonSM uses the `b4e8edb` commit version.
