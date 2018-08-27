@@ -23,7 +23,7 @@ public Plugin myinfo =
     name = "NeonSM",
     description = "Neon SourceMod",
     author = "danthonywalker#5512",
-    version = "0.1.1",
+    version = "0.1.2",
     url = "https://github.com/neon-bot-project/NeonSM"
 }
 
@@ -45,12 +45,14 @@ public void OnPluginStart()
     CreateTimer(1.0, PostCheckpoint, _, TIMER_REPEAT);
 
     HookEvent("player_say", Event_PlayerSay);
+    HookEvent("player_connect", Event_PlayerConnect);
+    HookEvent("player_disconnect", Event_PlayerDisconnect);
 }
 
 public void OnPluginEnd()
 {
-    // TODO: Apply metadata and on ON_PLGUIN_START
-    PostEvent("ON_PLGUIN_END", new JSONObject());
+    // TODO: Apply metadata and on ON_PLUGIN_START
+    PostEvent("ON_PLUGIN_END", new JSONObject());
 }
 
 public void OnConfigsExecuted()
@@ -72,7 +74,7 @@ public void OnConfigsExecuted()
         httpClient.SetHeader("Content-Type", "application/json");
 
         // Fulfills same functionality as OnPluginStart()
-        PostEvent("ON_PLGUIN_START", new JSONObject());
+        PostEvent("ON_PLUGIN_START", new JSONObject());
     }
 }
 
@@ -126,16 +128,6 @@ public void OnMapEnd()
     PostEvent("ON_MAP_END", payload);
 }
 
-public void OnClientConnected(int client)
-{
-    PostEvent("ON_CLIENT_CONNECTED", GetJSONClientInfo(client));
-}
-
-public void OnClientDisconnect(int client)
-{
-    PostEvent("ON_CLIENT_DISCONNECT", GetJSONClientInfo(client));
-}
-
 static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
 {
     JSONObject payload = new JSONObject();
@@ -145,6 +137,35 @@ static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
     int client = GetClientOfUserId(event.GetInt("userid"));
     payload.Set("client", GetJSONClientInfo(client));
     PostEvent("PLAYER_SAY", payload);
+}
+
+public void Event_PlayerConnect(Event event, const char[] name, bool dontBroadcast)
+{
+    JSONObject payload = new JSONObject();
+    event.GetString("name", BUFFER, BUFFER_SIZE);
+    payload.SetString("name", BUFFER);
+    payload.SetInt("index", event.GetInt("index"));
+    payload.SetInt("userid", event.GetInt("userid"));
+    event.GetString("networkid", BUFFER, BUFFER_SIZE);
+    payload.SetString("networkid", BUFFER);
+    event.GetString("address", BUFFER, BUFFER_SIZE);
+    payload.SetString("address", BUFFER);
+    payload.SetInt("bot", event.GetInt("bot"));
+    PostEvent("PLAYER_CONNECT", payload);
+}
+
+public void Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast)
+{
+    JSONObject payload = new JSONObject();
+    payload.SetInt("userid", event.GetInt("userid"));
+    event.GetString("reason", BUFFER, BUFFER_SIZE);
+    payload.SetString("reason", BUFFER);
+    event.GetString("name", BUFFER, BUFFER_SIZE);
+    payload.SetString("name", BUFFER);
+    event.GetString("networkid", BUFFER, BUFFER_SIZE);
+    payload.SetString("networkid", BUFFER);
+    event.SetInt("bot", event.GetInt("bot"))
+    PostEvent("PLAYER_DISCONNECT", payload);
 }
 
 static Action PostCheckpoint(Handle timer)
@@ -193,6 +214,7 @@ static void PostCallback(HTTPResponse response, any value)
     // Disables HTTPClient until OnConfigsExecuted(), ignoring errors if Neon is shutdown
     if ((response.Status != HTTPStatus_OK) && (response.Status != HTTPStatus_BadGateway))
     {
+        CloseHandle(httpClient);
         httpClient = null; // Call before LogError because OnLogAction()
         LogError("Failed HTTP Request - Status: (%d)", response.Status);
     }
@@ -221,6 +243,7 @@ static JSONObject GetJSONClientInfo(int client)
 static JSONObject GetJSONPluginInfo(Handle handle)
 {
     JSONObject pluginInfo = new JSONObject();
+
     GetPluginInfo(handle, PlInfo_Name, BUFFER, BUFFER_SIZE);
     pluginInfo.SetString("name", BUFFER);
     GetPluginInfo(handle, PlInfo_Author, BUFFER, BUFFER_SIZE);
@@ -231,5 +254,6 @@ static JSONObject GetJSONPluginInfo(Handle handle)
     pluginInfo.SetString("version", BUFFER);
     GetPluginInfo(handle, PlInfo_URL, BUFFER, BUFFER_SIZE);
     pluginInfo.SetString("url", BUFFER);
+
     return pluginInfo;
 }
