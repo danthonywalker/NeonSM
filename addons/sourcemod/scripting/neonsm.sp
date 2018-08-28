@@ -23,9 +23,9 @@ public Plugin myinfo =
     name = "NeonSM",
     description = "Neon SourceMod",
     author = "danthonywalker#5512",
-    version = "0.1.2",
+    version = "0.1.3",
     url = "https://github.com/neon-bot-project/NeonSM"
-}
+};
 
 static ConVar neonSmChannelId;
 static ConVar neonSmToken;
@@ -131,17 +131,20 @@ public void OnMapEnd()
 static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
 {
     JSONObject payload = new JSONObject();
+
     event.GetString("text", BUFFER, BUFFER_SIZE);
     payload.SetString("text", BUFFER);
 
     int client = GetClientOfUserId(event.GetInt("userid"));
     payload.Set("client", GetJSONClientInfo(client));
+
     PostEvent("PLAYER_SAY", payload);
 }
 
 public void Event_PlayerConnect(Event event, const char[] name, bool dontBroadcast)
 {
     JSONObject payload = new JSONObject();
+
     event.GetString("name", BUFFER, BUFFER_SIZE);
     payload.SetString("name", BUFFER);
     payload.SetInt("index", event.GetInt("index"));
@@ -151,12 +154,14 @@ public void Event_PlayerConnect(Event event, const char[] name, bool dontBroadca
     event.GetString("address", BUFFER, BUFFER_SIZE);
     payload.SetString("address", BUFFER);
     payload.SetInt("bot", event.GetInt("bot"));
+
     PostEvent("PLAYER_CONNECT", payload);
 }
 
 public void Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast)
 {
     JSONObject payload = new JSONObject();
+
     payload.SetInt("userid", event.GetInt("userid"));
     event.GetString("reason", BUFFER, BUFFER_SIZE);
     payload.SetString("reason", BUFFER);
@@ -164,15 +169,18 @@ public void Event_PlayerDisconnect(Event event, const char[] name, bool dontBroa
     payload.SetString("name", BUFFER);
     event.GetString("networkid", BUFFER, BUFFER_SIZE);
     payload.SetString("networkid", BUFFER);
-    event.SetInt("bot", event.GetInt("bot"))
+    event.SetInt("bot", event.GetInt("bot"));
+
     PostEvent("PLAYER_DISCONNECT", payload);
 }
 
 static Action PostCheckpoint(Handle timer)
 {
     if (httpClient != null)
-    { // TODO: Replace this endpoint for a decent SourceMod WebSocket implementation
-        httpClient.Post("checkpoints", new JSONObject(), PostCheckpointCallback);
+    { // TODO: Use WebSocket as an alternative
+        JSONObject payload = new JSONObject();
+        httpClient.Post("checkpoints", payload, PostCheckpointCallback);
+        CloseHandle(payload);
     }
 
     return Plugin_Continue;
@@ -207,6 +215,8 @@ static void PostEvent(const char[] type, JSONObject payload)
         request.Set("payload", payload);
         httpClient.Post("events", request, PostCallback);
     }
+
+    CloseHandle(payload);
 }
 
 static void PostCallback(HTTPResponse response, any value)
