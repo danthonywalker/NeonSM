@@ -23,7 +23,7 @@ public Plugin myinfo =
     name = "NeonSM",
     description = "Neon SourceMod",
     author = "danthonywalker#5512",
-    version = "0.1.3",
+    version = "0.1.4",
     url = "https://github.com/neon-bot-project/NeonSM"
 };
 
@@ -186,9 +186,9 @@ static Action PostCheckpoint(Handle timer)
     return Plugin_Continue;
 }
 
-static void PostCheckpointCallback(HTTPResponse response, any value)
+static void PostCheckpointCallback(HTTPResponse response, any value, const char[] error)
 {
-    PostCallback(response, value);
+    PostCallback(response, value, error);
     if (response.Status == HTTPStatus_OK)
     {
         JSONArray payloads = view_as<JSONArray>(response.Data);
@@ -219,14 +219,14 @@ static void PostEvent(const char[] type, JSONObject payload)
     CloseHandle(payload);
 }
 
-static void PostCallback(HTTPResponse response, any value)
+static void PostCallback(HTTPResponse response, any value, const char[] error)
 {
     // Disables HTTPClient until OnConfigsExecuted(), ignoring errors if Neon is shutdown
     if ((response.Status != HTTPStatus_OK) && (response.Status != HTTPStatus_BadGateway))
     {
         CloseHandle(httpClient);
         httpClient = null; // Call before LogError because OnLogAction()
-        LogError("Failed HTTP Request - Status: (%d)", response.Status);
+        LogError("Failed HTTP Request %d - %s", response.Status, error);
     }
 }
 
