@@ -3,19 +3,36 @@ pipeline:
     image: debian
     pull: true
     commands:
+      # Update Debian
       - apt-get update
+      - apt-get dist-upgrade
+
+      # Download and Install Dependencies
       - apt-get install -y curl libc6-i386 lib32stdc++6
-      - curl -Lk https://sm.alliedmods.net/smdrop/1.9/sourcemod-1.9.0-git6245-linux.tar.gz | tar -xz -C ./
-      - curl -Lk https://github.com/ErikMinekus/sm-ripext/releases/download/1.0.5/sm-ripext-1.0.5-linux.tar.gz | tar -xz -C ./
-      - curl -Lk -o morecolors.inc https://www.doctormckay.com/download/scripting/include/morecolors.inc
-      - cp morecolors.inc ./addons/sourcemod/scripting/include/
-      - ./addons/sourcemod/scripting/compile.sh neonsm.sp
+      - curl -Lk https://sm.alliedmods.net/smdrop/1.9/sourcemod-1.9.0-git6252-linux.tar.gz | tar -xz
+      - curl -Lk https://github.com/ErikMinekus/sm-ripext/releases/download/1.0.5/sm-ripext-1.0.5-linux.tar.gz | tar -xz
+
+      # Define SourceMod Variables
+      - SOURCEMOD=addons/sourcemod
+      - SOURCEMOD_PLUGINS=$SOURCEMOD/plugins
+      - SOURCEMOD_SCRIPTING=$SOURCEMOD/scripting
+      - SOURCEMOD_INCLUDE=$SOURCEMOD_SCRIPTING/include
+
+      # Compile NeonSM
+      - $SOURCEMOD_SCRIPTING/compile.sh neonsm.sp
+
+      # Build NeonSM Release Archive
+      - mkdir -p build/$SOURCEMOD_PLUGINS
+      - mkdir -p build/$SOURCEMOD_INCLUDE
+      - cp $SOURCEMOD_SCRIPTING/compiled/neonsm.smx build/$SOURCEMOD_PLUGINS
+      - cp $SOURCEMOD_INCLUDE/neonsm.inc build/$SOURCEMOD_INCLUDE
+      - tar -zcf neonsm.tar.gz -C build addons
 
   release:
     image: plugins/github-release
     pull: true
     secrets: [ github_token ]
-    files: ./addons/sourcemod/scripting/compiled/neonsm.smx
+    files: ./neonsm.tar.gz
     checksum:
       - md5
       - sha1

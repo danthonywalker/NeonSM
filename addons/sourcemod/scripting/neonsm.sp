@@ -14,256 +14,234 @@
  * You should have received a copy of the GNU General Public License
  * along with NeonSM.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include <morecolors>
 #include <ripext>
 #include <sourcemod>
 
 public Plugin myinfo =
 {
     name = "NeonSM",
-    description = "Neon SourceMod",
     author = "danthonywalker#5512",
-    version = "0.1.4",
+    description = "Neon SourceMod",
+    version = "1.0.0",
     url = "https://github.com/neon-bot-project/NeonSM"
 };
 
-static ConVar neonSmChannelId;
-static ConVar neonSmToken;
 static HTTPClient httpClient;
+static ConVar channelId;
+static ConVar token;
 
-#define BUFFER_SIZE 255
-static char BUFFER[BUFFER_SIZE];
+static Handle onCheckpointGlobal;
+static Handle onCheckpointPrivate;
+static StringMap onCheckpoints;
+
+static ArrayList eventRequests;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+    CreateNative("HookCheckpoint", Native_HookCheckpoint);
+    CreateNative("UnhookCheckpoint", Native_UnhookCheckpoint);
+    CreateNative("HookCheckpointEx", Native_HookCheckpointEx);
+    CreateNative("UnhookCheckpointEx", Native_UnhookCheckpointEx);
+    CreateNative("PostEvent", Native_PostEvent);
+
+    RegPluginLibrary("neonsm");
+    return APLRes_Success;
+}
 
 public void OnPluginStart()
 {
-    // ConVar values are not loaded until OnConfigsExecuted() is executed (so wait to initialize the HTTPClient)
-    neonSmChannelId = CreateConVar("neonsm_channel_id", "", "The ID of the channel for NeonSM to communicate.");
-    neonSmToken = CreateConVar("neonsm_token", "", "Secret token for neonsm_channel_id.");
-    AutoExecConfig(true, "neonsm");
+    // ConVar values are not loaded until OnConfigsExecuted() is called (so wait to initialize HTTPClient)
+    channelId = CreateConVar("neonsm_channel_id", "", "The ID of the channel for NeonSM to communicate.");
+    token = CreateConVar("neonsm_token", "", "The secret token for neonsm_channel_id.");
+    AutoExecConfig(true, "neonsm", "neonsm");
 
-    // Post a checkpoint and retrieve events every second
+    onCheckpoints = new StringMap();
+    eventRequests = new ArrayList(1, 0);
+
+    onCheckpointGlobal = CreateGlobalForward("OnCheckpoint", ET_Event, Param_String, Param_Cell);
+    onCheckpointPrivate = CreateForward(ET_Event, Param_String, Param_Cell);
     CreateTimer(1.0, PostCheckpoint, _, TIMER_REPEAT);
-
-    HookEvent("player_say", Event_PlayerSay);
-    HookEvent("player_connect", Event_PlayerConnect);
-    HookEvent("player_disconnect", Event_PlayerDisconnect);
-}
-
-public void OnPluginEnd()
-{
-    // TODO: Apply metadata and on ON_PLUGIN_START
-    PostEvent("ON_PLUGIN_END", new JSONObject());
 }
 
 public void OnConfigsExecuted()
 {
-    if (httpClient == null)
+    if (httpClient == INVALID_HANDLE)
     {
-        char buffer[BUFFER_SIZE] = "https://neon.yockto.technology/api/v1/channels/";
-        GetConVarString(neonSmChannelId, BUFFER, BUFFER_SIZE);
-        StrCat(buffer, BUFFER_SIZE, BUFFER);
+        // Do not waste permanent heap space (static) as the buffers are only accessed once
+        char buffer[PLATFORM_MAX_PATH] = "https://neon.yockto.technology/api/v1/channels/";
+        char conVarBuffer[PLATFORM_MAX_PATH];
+
+        GetConVarString(channelId, conVarBuffer, sizeof(conVarBuffer));
+        StrCat(buffer, sizeof(buffer), conVarBuffer);
         httpClient = new HTTPClient(buffer);
 
-        buffer = "Basic "; // Authorization header prefix
-        GetConVarString(neonSmToken, BUFFER, BUFFER_SIZE);
-        StrCat(buffer, BUFFER_SIZE, BUFFER);
+        strcopy(buffer, sizeof(buffer), "Basic ");
+        GetConVarString(token, conVarBuffer, sizeof(conVarBuffer));
+        StrCat(buffer, sizeof(buffer), conVarBuffer);
         httpClient.SetHeader("Authorization", buffer);
 
-        // Additional headers required by Neon REST server
-        httpClient.SetHeader("Accept", "application/json");
-        httpClient.SetHeader("Content-Type", "application/json");
-
-        // Fulfills same functionality as OnPluginStart()
-        PostEvent("ON_PLUGIN_START", new JSONObject());
-    }
-}
-
-public Action OnLogAction(Handle source, Identity ident, int client, int target, const char[] message)
-{
-    if ((target == 0) || (target == -1))
-    { // Only log actions targeting the console
-        JSONObject payload = new JSONObject();
-
-        switch (ident)
+        for (int index = 0; index < eventRequests.Length; index++)
         {
-            case Identity_Core:
-            { // TODO: Get information about the client
-                payload.SetString("source", "core");
-            }
-            case Identity_Extension:
-            { // TODO: Get information about the extension
-                payload.SetString("source", "extension");
-            }
-            case Identity_Plugin:
-            {
-                payload.SetString("source", "plugin");
-                payload.Set("plugin", GetJSONPluginInfo(source));
-            }
+            DataPack pair = eventRequests.Get(index);
+            Handle plugin = pair.ReadCell();
+            JSONObject eventRequest = pair.ReadCell();
+            pair.Close();
+
+            PostEventEx(plugin, eventRequest);
         }
 
-        payload.SetString("message", message);
-        PostEvent("ON_LOG_ACTION", payload);
+        eventRequests.Close();
+    }
+}
+
+public int Native_PostEvent(Handle plugin, int numParams)
+{
+    int typeLength;
+    GetNativeStringLength(1, typeLength);
+    char[] type = new char[typeLength + 1];
+    GetNativeString(1, type, typeLength + 1);
+    JSONObject payload = GetNativeCell(2);
+
+    JSONObject eventRequest = new JSONObject();
+    eventRequest.SetString("type", type);
+    eventRequest.Set("payload", payload);
+
+    if (httpClient == INVALID_HANDLE)
+    { // If PostEvent() is invoked before OnConfigsExecuted()
+        eventRequests.Push(CreatePair(plugin, eventRequest));
+    }
+    else
+    {
+        PostEventEx(plugin, eventRequest);
+    }
+}
+
+static void PostEventEx(Handle plugin, JSONObject eventRequest)
+{
+    httpClient.Post("events", eventRequest, HttpRequestCallback, CreatePair(plugin, eventRequest));
+}
+
+public Action PostCheckpoint(Handle timer)
+{
+    if (httpClient != INVALID_HANDLE)
+    { // TODO Make a WebSocket implementation
+        JSONObject request = new JSONObject();
+        httpClient.Post("checkpoints", request, PostCheckpointCallback, CreatePair(GetMyHandle(), request));
     }
 
     return Plugin_Continue;
 }
 
-public void OnMapStart()
+public int Native_HookCheckpoint(Handle plugin, int numParams)
 {
-    JSONObject payload = new JSONObject();
+    int typeLength;
+    GetNativeStringLength(1, typeLength);
+    char[] type = new char[typeLength + 1];
+    GetNativeString(1, type, typeLength + 1);
 
-    GetCurrentMap(BUFFER, BUFFER_SIZE);
-    payload.SetString("name", BUFFER);
-
-    PostEvent("ON_MAP_START", payload);
-}
-
-public void OnMapEnd()
-{
-    JSONObject payload = new JSONObject();
-
-    GetCurrentMap(BUFFER, BUFFER_SIZE);
-    payload.SetString("name", BUFFER);
-
-    PostEvent("ON_MAP_END", payload);
-}
-
-static void Event_PlayerSay(Event event, const char[] name, bool dontBroadcast)
-{
-    JSONObject payload = new JSONObject();
-
-    event.GetString("text", BUFFER, BUFFER_SIZE);
-    payload.SetString("text", BUFFER);
-
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    payload.Set("client", GetJSONClientInfo(client));
-
-    PostEvent("PLAYER_SAY", payload);
-}
-
-public void Event_PlayerConnect(Event event, const char[] name, bool dontBroadcast)
-{
-    JSONObject payload = new JSONObject();
-
-    event.GetString("name", BUFFER, BUFFER_SIZE);
-    payload.SetString("name", BUFFER);
-    payload.SetInt("index", event.GetInt("index"));
-    payload.SetInt("userid", event.GetInt("userid"));
-    event.GetString("networkid", BUFFER, BUFFER_SIZE);
-    payload.SetString("networkid", BUFFER);
-    event.GetString("address", BUFFER, BUFFER_SIZE);
-    payload.SetString("address", BUFFER);
-    payload.SetInt("bot", event.GetInt("bot"));
-
-    PostEvent("PLAYER_CONNECT", payload);
-}
-
-public void Event_PlayerDisconnect(Event event, const char[] name, bool dontBroadcast)
-{
-    JSONObject payload = new JSONObject();
-
-    payload.SetInt("userid", event.GetInt("userid"));
-    event.GetString("reason", BUFFER, BUFFER_SIZE);
-    payload.SetString("reason", BUFFER);
-    event.GetString("name", BUFFER, BUFFER_SIZE);
-    payload.SetString("name", BUFFER);
-    event.GetString("networkid", BUFFER, BUFFER_SIZE);
-    payload.SetString("networkid", BUFFER);
-    event.SetInt("bot", event.GetInt("bot"));
-
-    PostEvent("PLAYER_DISCONNECT", payload);
-}
-
-static Action PostCheckpoint(Handle timer)
-{
-    if (httpClient != null)
-    { // TODO: Use WebSocket as an alternative
-        JSONObject payload = new JSONObject();
-        httpClient.Post("checkpoints", payload, PostCheckpointCallback);
-        CloseHandle(payload);
+    Handle fwd;
+    if (!onCheckpoints.GetValue(type, fwd))
+    {
+        fwd = CreateForward(ET_Event, Param_String, Param_Cell);
+        onCheckpoints.SetValue(type, fwd);
     }
 
-    return Plugin_Continue;
+    AddToForward(fwd, plugin, GetNativeFunction(2));
 }
 
-static void PostCheckpointCallback(HTTPResponse response, any value, const char[] error)
+public int Native_UnhookCheckpoint(Handle plugin, int numParams)
 {
-    PostCallback(response, value, error);
+    int typeLength;
+    GetNativeStringLength(1, typeLength);
+    char[] type = new char[typeLength + 1];
+    GetNativeString(1, type, typeLength + 1);
+
+    Handle fwd;
+    if (onCheckpoints.GetValue(type, fwd))
+    { // TODO Possibly track forward count for closing Handle
+        RemoveFromForward(fwd, plugin, GetNativeFunction(2));
+    }
+}
+
+public int Native_HookCheckpointEx(Handle plugin, int numParams)
+{
+    AddToForward(onCheckpointPrivate, plugin, GetNativeFunction(1));
+}
+
+public int Native_UnhookCheckpointEx(Handle plugin, int numParams)
+{
+    RemoveFromForward(onCheckpointPrivate, plugin, GetNativeFunction(1));
+}
+
+static void ForwardOnCheckpoint(Handle fwd, const char[] type, JSONObject payload)
+{
+    Call_StartForward(fwd);
+    Call_PushString(type);
+    Call_PushCell(payload);
+    Call_Finish();
+}
+
+public void PostCheckpointCallback(HTTPResponse response, any value, const char[] error)
+{
+    HttpRequestCallback(response, value, error);
     if (response.Status == HTTPStatus_OK)
     {
-        JSONArray payloads = view_as<JSONArray>(response.Data);
-        for (int index = 0; index < payloads.Length; index++)
+        JSONArray checkpointResponses = view_as<JSONArray>(response.Data);
+        for (int index = 0; index < checkpointResponses.Length; index++)
         {
-            JSONObject payload = view_as<JSONObject>(payloads.Get(index));
-            payload.GetString("type", BUFFER, BUFFER_SIZE);
+            JSONObject checkpointResponse = view_as<JSONObject>(checkpointResponses.Get(index));
 
-            if (StrEqual(BUFFER, "ALL_MESSAGES"))
+            static char type[PLATFORM_MAX_PATH];
+            checkpointResponse.GetString("type", type, sizeof(type));
+            JSONObject payload = view_as<JSONObject>(checkpointResponse.Get("payload"));
+
+            Handle fwd;
+            if (onCheckpoints.GetValue(type, fwd))
             {
-                payload.GetString("payload", BUFFER, BUFFER_SIZE);
-                CPrintToChatAll(BUFFER); // #include <morecolors>
+                ForwardOnCheckpoint(fwd, type, payload);
             }
+
+            ForwardOnCheckpoint(onCheckpointGlobal, type, payload);
+            ForwardOnCheckpoint(onCheckpointPrivate, type, payload);
         }
     }
 }
 
-static void PostEvent(const char[] type, JSONObject payload)
+public void HttpRequestCallback(HTTPResponse response, any value, const char[] error)
 {
-    if (httpClient != null)
+    DataPack pair = value;
+    Handle plugin = pair.ReadCell();
+    JSONObject request = pair.ReadCell();
+    pair.Close();
+
+    HTTPStatus status = response.Status;
+    if ((status != HTTPStatus_OK) && (plugin != INVALID_HANDLE))
     {
-        JSONObject request = new JSONObject();
-        request.SetString("type", type);
-        request.Set("payload", payload);
-        httpClient.Post("events", request, PostCallback);
+        // Do not waste permanent heap space (static) for errors
+        char fileName[PLATFORM_MAX_PATH];
+        char json[PLATFORM_MAX_PATH];
+
+        GetPluginFilename(plugin, fileName, sizeof(fileName));
+        LogError("%s Failed HTTP %d Error - %s", fileName, status, error);
+        request.ToString(json, sizeof(json), JSON_COMPACT);
+        LogError("%s Failed HTTP %d Request - %s", fileName, status, json);
+
+        JSON responseBody = response.Data;
+        if (responseBody != INVALID_HANDLE)
+        {
+            responseBody.ToString(json, sizeof(json), JSON_COMPACT);
+            LogError("%s Failed HTTP %d Response - %s", fileName, status, json);
+        }
     }
 
-    CloseHandle(payload);
+    request.Close();
 }
 
-static void PostCallback(HTTPResponse response, any value, const char[] error)
-{
-    // Disables HTTPClient until OnConfigsExecuted(), ignoring errors if Neon is shutdown
-    if ((response.Status != HTTPStatus_OK) && (response.Status != HTTPStatus_BadGateway))
-    {
-        CloseHandle(httpClient);
-        httpClient = null; // Call before LogError because OnLogAction()
-        LogError("Failed HTTP Request %d - %s", response.Status, error);
-    }
-}
-
-static JSONObject GetJSONClientInfo(int client)
-{
-    JSONObject clientInfo = new JSONObject();
-
-    clientInfo.SetInt("client", client);
-    clientInfo.SetInt("userId", GetClientUserId(client));
-    GetClientAuthId(client, AuthId_SteamID64, BUFFER, BUFFER_SIZE);
-    clientInfo.SetString("authId", BUFFER);
-    GetClientName(client, BUFFER, BUFFER_SIZE);
-    clientInfo.SetString("name", BUFFER);
-    GetClientIP(client, BUFFER, BUFFER_SIZE);
-    clientInfo.SetString("ip", BUFFER);
-    clientInfo.SetFloat("latency", GetClientLatency(client, NetFlow_Both));
-    clientInfo.SetFloat("avgPackets", GetClientAvgPackets(client, NetFlow_Both));
-    clientInfo.SetFloat("avgLoss", GetClientAvgLoss(client, NetFlow_Both));
-    clientInfo.SetFloat("avgData", GetClientAvgData(client, NetFlow_Both));
-
-    return clientInfo;
-}
-
-static JSONObject GetJSONPluginInfo(Handle handle)
-{
-    JSONObject pluginInfo = new JSONObject();
-
-    GetPluginInfo(handle, PlInfo_Name, BUFFER, BUFFER_SIZE);
-    pluginInfo.SetString("name", BUFFER);
-    GetPluginInfo(handle, PlInfo_Author, BUFFER, BUFFER_SIZE);
-    pluginInfo.SetString("author", BUFFER);
-    GetPluginInfo(handle, PlInfo_Description, BUFFER, BUFFER_SIZE);
-    pluginInfo.SetString("description", BUFFER);
-    GetPluginInfo(handle, PlInfo_Version, BUFFER, BUFFER_SIZE);
-    pluginInfo.SetString("version", BUFFER);
-    GetPluginInfo(handle, PlInfo_URL, BUFFER, BUFFER_SIZE);
-    pluginInfo.SetString("url", BUFFER);
-
-    return pluginInfo;
+static DataPack CreatePair(any first, any second)
+{ // TODO Define an object for storing two values
+    DataPack pair = new DataPack();
+    pair.WriteCell(first);
+    pair.WriteCell(second);
+    pair.Reset();
+    return pair;
 }

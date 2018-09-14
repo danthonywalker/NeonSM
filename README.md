@@ -1,16 +1,15 @@
 # NeonSM
-SourceMod Script for Neon
+Neon SourceMod
 
 ## Installation
-NeonSM requires [REST in Pawn](https://forums.alliedmods.net/showthread.php?t=298024) and
-[More Colors](https://forums.alliedmods.net/showthread.php?t=185016) to be installed.
+### Requirements
+* [REST in Pawn](https://forums.alliedmods.net/showthread.php?t=298024)
+* **WINDOWS ONLY**: [7-Zip](https://www.7-zip.org/)
 
-1. [Download](https://github.com/neon-bot-project/NeonSM/releases) `neonsm.smx` and place it under the
-`addons/sourcemod/plugins` directory. You may use any of the numerous checksum files to verify integrity.
+1. [Download](https://github.com/neon-bot-project/NeonSM/releases) and extract `neonsm.tar.gz`.
 
-2. Load the plugin using `sm plugins load neonsm`. You may safely ignore any errors during this step.
+2. Enter `sm plugins load neonsm` in the server console.
 
-3. Find the `neonsm.cfg` configuration file and change the values accordingly. If you do not understand what values to
-input refer to the documentation supplied by [Neon](https://github.com/neon-bot-project/Neon).
+3. Edit ConVar values in `cfg/neonsm/neonsm.cfg`.
 
-4. Reload the plugin using `sm plugins reload neonsm`. There should be no errors during this step.
+4. Enter `sm plugins reload neonsm` in the server console.
