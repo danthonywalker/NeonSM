@@ -17,6 +17,7 @@
 #if defined _neonsm_included_
     #endinput
 #endif
+#define _neonsm_included_
 
 #include <ripext>
 
