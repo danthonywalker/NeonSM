@@ -6,7 +6,7 @@ Neon SourceMod
 * **WINDOWS ONLY**: [7-Zip](https://www.7-zip.org/)
 
 ## Installation
-1. [Download](https://github.com/neon-bot-project/NeonSM/releases) and extract `neonsm.tar.gz`.
+1. [Download](https://github.com/NeonTech/NeonSM/releases) and extract `neonsm.tar.gz`.
 
 2. Enter `sm plugins load neonsm` in the server console.
 

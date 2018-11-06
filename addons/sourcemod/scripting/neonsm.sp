@@ -22,8 +22,8 @@ public Plugin myinfo =
     name = "NeonSM",
     author = "danthonywalker#5512",
     description = "Neon SourceMod",
-    version = "1.0.0",
-    url = "https://github.com/neon-bot-project/NeonSM"
+    version = "1.0.1",
+    url = "https://github.com/NeonTech/NeonSM"
 };
 
 static HTTPClient httpClient;
@@ -67,8 +67,7 @@ public void OnConfigsExecuted()
 {
     if (httpClient == INVALID_HANDLE)
     {
-        // Do not waste permanent heap space (static) as the buffers are only accessed once
-        char buffer[PLATFORM_MAX_PATH] = "https://neon.yockto.technology/api/v1/channels/";
+        char buffer[PLATFORM_MAX_PATH] = "https://api.neon.tech/channels/";
         char conVarBuffer[PLATFORM_MAX_PATH];
 
         GetConVarString(channelId, conVarBuffer, sizeof(conVarBuffer));
